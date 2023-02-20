@@ -1,0 +1,80 @@
+version: '3.1'
+
+site-name: 豆瓣读书TOP250
+site-url: https://book.douban.com/top250
+
+spiders:
+  - spider-name: root
+  - spider-name: detail
+
+PageProcessor:
+  - name: get-next-page-aTag-list
+    xpath-find: //div[@class='paginator']//a//@href
+    attrs:
+      - name: href
+        attr: href
+
+  - name: get-book-item-list
+    xpath-find: //div[@class='indent']//tr[@class='item']
+
+  - name: get-book-item-tilte-a
+    xpath-find-one: //div[@class='pl2']//a
+    attrs:
+      - name: href
+        attr: title
+      - name: href
+        attr: href
+  - name: get-book-item-des-p
+    xpath-find-one: //[@class='pl']
+    attrs:
+      - name: des
+        attr: vale
+  - name: get-book-item-score-span
+    xpath-find-one: //div[@class='star clearfix']//span[@class='rating_nums']
+    attrs:
+      - name: score
+        attr: vale
+  - name: get-book-item-evaluate-span
+    xpath-find-one: //div[@class='star clearfix']//span[@class='pl']
+    attrs:
+      - name: evaluateNum
+        attr: vale
+  - name: get-book-item-quote-span
+    xpath-find-one: //p[@class='quote'//span[@class='inq']]
+    attrs:
+      - name: quote
+        attr: vale
+
+
+Pipeline:
+  - name: visit-next-page
+    type: addToVisit
+    url-json-path: $.href
+    spider: root
+  - name: visit-detail-page
+    type: addToVisit
+    spider: detail
+    url-json-path: $.href
+
+Flow:
+  - spider: root
+    nodes:
+      - name: 爬取下一页
+        PageProcessor:
+          - get-next-page-aTag-list
+        Pipeline:
+          - visit-next-page
+      - name: 爬取详情页
+        PageProcessor:
+          - get-book-item-list
+          - get-book-item-tilte-a
+        Pipeline:
+          - visit-detail-page
+  - spider: detail
+    nodes:
+
+
+
+
+
+
