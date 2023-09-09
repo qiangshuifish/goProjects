@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/antchfx/htmlquery"
 	"github.com/spf13/pflag"
+	"golang.org/x/net/html"
 	"reflect"
 	"strings"
 )
@@ -136,7 +137,7 @@ func parser(key string, html string, xpath string, resultData map[string]interfa
 	}
 	doc, err := htmlquery.Parse(strings.NewReader(html))
 	if err != nil {
-		printlnErr(err, "Parser html err")
+		printlnErr(err, "Parser htmlxk err")
 		return false
 	}
 	if arrMode {
@@ -147,15 +148,7 @@ func parser(key string, html string, xpath string, resultData map[string]interfa
 		}
 		arr := make([]string, len(elements))
 		for index, element := range elements {
-			if nameType == xpathResultHtmlType {
-				arr[index] = htmlquery.OutputHTML(element, true)
-			}
-			if nameType == xpathResultContentType {
-				arr[index] = strings.TrimSpace(htmlquery.InnerText(element))
-			}
-			if nameType == xpathResultAttrType {
-				arr[index] = strings.TrimSpace(htmlquery.SelectAttr(element, name))
-			}
+			arr[index], err = getResultData(nameType, name, element)
 		}
 		resultData[name] = arr
 	} else {
@@ -164,18 +157,28 @@ func parser(key string, html string, xpath string, resultData map[string]interfa
 			printlnErr(err, "Parser "+key+": "+xpath+" err")
 			return false
 		}
-		if nameType == xpathResultHtmlType {
-			resultData[name] = htmlquery.OutputHTML(element, true)
-		}
-		if nameType == xpathResultContentType {
-			resultData[name] = strings.TrimSpace(htmlquery.InnerText(element))
-		}
-		if nameType == xpathResultAttrType {
-			resultData[name] = strings.TrimSpace(htmlquery.SelectAttr(element, name))
-		}
+		resultData[name], err = getResultData(nameType, name, element)
 	}
 	return true
 }
+
+func getResultData(nameType string, name string, element *html.Node) (string, error) {
+	var data = ""
+	defer func() {
+		recover()
+	}()
+	if nameType == xpathResultHtmlType {
+		data = htmlquery.OutputHTML(element, true)
+	}
+	if nameType == xpathResultContentType {
+		data = strings.TrimSpace(htmlquery.InnerText(element))
+	}
+	if nameType == xpathResultAttrType {
+		data = strings.TrimSpace(htmlquery.SelectAttr(element, name))
+	}
+	return data, nil
+}
+
 func getXpathResultType(split string) string {
 	switch split {
 	case xpathResultHtmlType:
