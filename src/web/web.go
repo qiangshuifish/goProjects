@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/pflag"
 	"math/rand"
 	"net/http"
+	xpathUtils "spider/src/utils"
 	"strconv"
 	"time"
 )
@@ -12,6 +13,8 @@ import (
 var db = make(map[string]string)
 
 func setupRouter() *gin.Engine {
+	//引用 utils 下的 xpath 模块
+
 	// Disable Console Color
 	// gin.DisableConsoleColor()
 	r := gin.Default()
@@ -33,7 +36,7 @@ func setupRouter() *gin.Engine {
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 	})
 
-	r.GET("/html/random/sleep", func(c *gin.Context) {
+	r.GET("/html/random/sleep/:a", func(c *gin.Context) {
 		time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
 		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 	})
@@ -41,6 +44,26 @@ func setupRouter() *gin.Engine {
 	r.GET("/json/random/sleep", func(c *gin.Context) {
 		time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
 		c.JSON(http.StatusOK, Result{true, "success", "success"})
+	})
+
+	r.POST("/parse/xpath", func(ctx *gin.Context) {
+		xpath, b := ctx.GetPostForm("xpath")
+		if !b {
+			ctx.JSON(http.StatusOK, Result{false, "xpath is not exit", ""})
+			return
+		}
+		html, b2 := ctx.GetPostForm("html")
+		if !b2 {
+			ctx.JSON(http.StatusOK, Result{false, "html is not exit", ""})
+			return
+		}
+		exe := xpathUtils.Exe("", xpath, html, "")
+		ctx.JSON(http.StatusOK, Result{true, "success", exe})
+	})
+
+	r.GET("/xpath", func(ctx *gin.Context) {
+		html := "<!DOCTYPE html>\n<html>\n<head>\n    <meta charset='utf-8'>\n    <meta http-equiv='X-UA-Compatible' content='IE=edge'>\n    <title>Page Title</title>\n    <meta name='viewport' content='width=device-width, initial-scale=1'>\n    <link rel='stylesheet' type='text/css' media='screen' href='main.css'>\n    <script src='main.js'></script>\n</head>\n<body>\n    <form action=\"/parse/xpath\" method=\"post\">\n        xpath: <input type=\"text\" name=\"xpath\"> <br>\n        html: <input type=\"text\" name=\"html\">\n        <input type=\"submit\" value=\"提交\">\n    </form>\n</body>\n</html>"
+		ctx.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
 	})
 
 	return r

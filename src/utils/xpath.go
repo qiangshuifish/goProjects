@@ -1,12 +1,10 @@
-package main
+package utils
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/antchfx/htmlquery"
-	"github.com/spf13/pflag"
 	"golang.org/x/net/html"
 	"reflect"
 	"strings"
@@ -16,28 +14,7 @@ const xpathResultHtmlType = "html"
 const xpathResultContentType = "content"
 const xpathResultAttrType = "attr"
 
-func main() {
-	var xpath = pflag.StringP("exp", "e", "", "使用表达式解析")
-	var config = pflag.StringP("config", "c", "", "使用配置解析")
-	var html = pflag.StringP("html", "h", "", "需要解析的html内容")
-	var enableBase64 = pflag.BoolP("enableBase64", "b", false, "是否开启对入参开启base64编码")
-	var resultHandle = pflag.StringP("resultHandle", "r", "", "结果处理器")
-
-	pflag.Parse()
-	if *enableBase64 {
-		decodeXpath, _ := base64.StdEncoding.DecodeString(*xpath)
-		decodeHtml, _ := base64.StdEncoding.DecodeString(*html)
-		decodeConfig, _ := base64.StdEncoding.DecodeString(*config)
-		decodeHandel, _ := base64.StdEncoding.DecodeString(*resultHandle)
-		*xpath = string(decodeXpath)
-		*html = string(decodeHtml)
-		*config = string(decodeConfig)
-		*resultHandle = string(decodeHandel)
-	}
-	s := exe(*config, *xpath, *html, *resultHandle)
-	fmt.Println(s)
-}
-func exe(config string, xpath string, html string, resultHandle string) string {
+func Exe(config string, xpath string, html string, resultHandle string) string {
 	if config == "" && xpath == "" {
 		printlnErr(errors.New("config or xpath must have one value"), "config or xpath must have one value")
 		return "{}"
