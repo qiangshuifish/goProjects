@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/antchfx/htmlquery"
+	"github.com/antchfx/xmlquery"
 	"golang.org/x/net/html"
 	"reflect"
 	"strings"
@@ -21,7 +22,7 @@ func Exe(config string, xpath string, html string, resultHandle string) string {
 	}
 	if config == "" {
 		resultData := make(map[string]interface{}, 1)
-		parser("name", html, xpath, resultData, true)
+		parser("name", html, xpath, resultData, true, false)
 		elms := resultData["name"].([]string)
 
 		// 如果需要处理结果参数
@@ -48,7 +49,7 @@ func Exe(config string, xpath string, html string, resultHandle string) string {
 		return "{}"
 	}
 	resultData := make(map[string]interface{}, len(configJson))
-	if xpathParser(configJson, html, resultData) {
+	if xpathParser(configJson, html, resultData, false) {
 		return "{}"
 	}
 	return printlnResult(resultData)
@@ -67,7 +68,7 @@ func handleResult(elms []string, resultHandle string) ([]map[string]interface{},
 	resultData := make([]map[string]interface{}, len(elms))
 	for index := range elms {
 		parserData := make(map[string]interface{}, len(configJson))
-		xpathParser(configJson, elms[index], parserData)
+		xpathParser(configJson, elms[index], parserData, true)
 		resultData[index] = parserData
 	}
 
@@ -75,7 +76,7 @@ func handleResult(elms []string, resultHandle string) ([]map[string]interface{},
 	return resultData, nil
 }
 
-func xpathParser(config map[string]interface{}, html string, resultData map[string]interface{}) bool {
+func xpathParser(config map[string]interface{}, html string, resultData map[string]interface{}, useXml bool) bool {
 	for key, value := range config {
 		//fmt.Printf("%v ============> %v\n", key, value)
 		switch data := value.(type) {
@@ -83,24 +84,24 @@ func xpathParser(config map[string]interface{}, html string, resultData map[stri
 			if value == "" {
 				continue
 			}
-			parser(key, html, data, resultData, false)
+			parser(key, html, data, resultData, false, useXml)
 		case []interface{}:
 			stringArr, err := toStringArr(value)
 			if err != nil {
 				printlnErr(err, "Parser "+key+" err")
 				return true
 			}
-			parser(key, html, stringArr[0], resultData, true)
+			parser(key, html, stringArr[0], resultData, true, useXml)
 		case interface{}:
 			var subConfig = data.(map[string]interface{})
 			subResultData := make(map[string]interface{}, 4)
-			xpathParser(subConfig, html, subResultData)
+			xpathParser(subConfig, html, subResultData, useXml)
 			resultData[key] = subResultData
 		}
 	}
 	return false
 }
-func parser(key string, html string, xpath string, resultData map[string]interface{}, arrMode bool) bool {
+func parser(key string, html string, xpath string, resultData map[string]interface{}, arrMode bool, useXml bool) {
 	var name string
 	var nameType = xpathResultHtmlType
 	if strings.Contains(key, "_") {
@@ -113,34 +114,69 @@ func parser(key string, html string, xpath string, resultData map[string]interfa
 	} else {
 		name = key
 	}
+	if useXml {
+		xmlQuery(key, html, xpath, resultData, arrMode, nameType, name)
+	} else {
+		htmlQuery(key, html, xpath, resultData, arrMode, nameType, name)
+	}
+
+}
+
+func htmlQuery(key string, html string, xpath string, resultData map[string]interface{}, arrMode bool, nameType string, name string) {
 	doc, err := htmlquery.Parse(strings.NewReader(html))
 	if err != nil {
 		printlnErr(err, "Parser htmlxk err")
-		return false
+		return
 	}
 	if arrMode {
 		elements, err := htmlquery.QueryAll(doc, xpath)
 		if err != nil {
 			printlnErr(err, "Parser "+key+": "+xpath+" err")
-			return false
+			return
 		}
 		arr := make([]string, len(elements))
 		for index, element := range elements {
-			arr[index], err = getResultData(nameType, name, element)
+			arr[index] = getHtmlResultData(nameType, name, element)
 		}
 		resultData[name] = arr
 	} else {
 		element, err := htmlquery.Query(doc, xpath)
 		if err != nil {
 			printlnErr(err, "Parser "+key+": "+xpath+" err")
-			return false
+			return
 		}
-		resultData[name], err = getResultData(nameType, name, element)
+		resultData[name] = getHtmlResultData(nameType, name, element)
 	}
-	return true
 }
 
-func getResultData(nameType string, name string, element *html.Node) (string, error) {
+func xmlQuery(key string, html string, xpath string, resultData map[string]interface{}, arrMode bool, nameType string, name string) {
+	doc, err := xmlquery.Parse(strings.NewReader(html))
+	if err != nil {
+		printlnErr(err, "Parser htmlxk err")
+		return
+	}
+	if arrMode {
+		elements, err := xmlquery.QueryAll(doc, xpath)
+		if err != nil {
+			printlnErr(err, "Parser "+key+": "+xpath+" err")
+			return
+		}
+		arr := make([]string, len(elements))
+		for index, element := range elements {
+			arr[index] = getXmlResultData(nameType, name, element)
+		}
+		resultData[name] = arr
+	} else {
+		element, err := xmlquery.Query(doc, xpath)
+		if err != nil {
+			printlnErr(err, "Parser "+key+": "+xpath+" err")
+			return
+		}
+		resultData[name] = getXmlResultData(nameType, name, element)
+	}
+}
+
+func getHtmlResultData(nameType string, name string, element *html.Node) string {
 	var data = ""
 	defer func() {
 		recover()
@@ -154,7 +190,24 @@ func getResultData(nameType string, name string, element *html.Node) (string, er
 	if nameType == xpathResultAttrType {
 		data = strings.TrimSpace(htmlquery.SelectAttr(element, name))
 	}
-	return data, nil
+	return data
+}
+
+func getXmlResultData(nameType string, name string, element *xmlquery.Node) string {
+	var data = ""
+	defer func() {
+		recover()
+	}()
+	if nameType == xpathResultHtmlType {
+		data = element.OutputXML(true)
+	}
+	if nameType == xpathResultContentType {
+		data = strings.TrimSpace(element.InnerText())
+	}
+	if nameType == xpathResultAttrType {
+		data = strings.TrimSpace(element.SelectAttr(name))
+	}
+	return data
 }
 
 func getXpathResultType(split string) string {
